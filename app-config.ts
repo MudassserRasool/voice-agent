@@ -33,20 +33,20 @@ export interface AppConfig {
 }
 
 export const APP_CONFIG_DEFAULTS: AppConfig = {
-  companyName: 'LiveKit',
-  pageTitle: 'LiveKit Voice Agent',
-  pageDescription: 'A voice agent built with LiveKit',
+  companyName: 'LearnMate',
+  pageTitle: 'LearnMate AI Voice Tutor',
+  pageDescription: 'A conversational AI tutor for guided voice lessons',
 
   supportsChatInput: true,
-  supportsVideoInput: true,
-  supportsScreenShare: true,
+  supportsVideoInput: false,
+  supportsScreenShare: false,
   isPreConnectBufferEnabled: true,
 
-  logo: '/lk-logo.svg',
-  accent: '#002cf2',
-  logoDark: '/lk-logo-dark.svg',
-  accentDark: '#1fd5f9',
-  startButtonText: 'Start call',
+  logo: '/learnmate-mark.svg',
+  accent: '#0f766e',
+  logoDark: '/learnmate-mark.svg',
+  accentDark: '#5eead4',
+  startButtonText: 'Start lesson',
 
   // optional: audio visualization configuration
   // audioVisualizerType: 'bar',
@@ -64,8 +64,13 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   // audioVisualizerWaveLineWidth: 3,
   // audioVisualizerType: 'aura',
 
+  audioVisualizerType: 'wave',
+  audioVisualizerColor: '#0f766e',
+  audioVisualizerColorDark: '#5eead4',
+  audioVisualizerWaveLineWidth: 3,
+
   // agent dispatch configuration
-  agentName: process.env.AGENT_NAME ?? undefined,
+  agentName: process.env.AGENT_NAME ?? 'teacher',
 
   // LiveKit Cloud Sandbox configuration
   sandboxId: undefined,
