@@ -25,9 +25,13 @@ export async function POST(req: Request) {
     // 2. extract text from PDF
     const text = await extractPDFText(buffer);
 
+    console.log('Extracted text length:', text.length);
+    console.log('Extracted text preview:', text.slice(0, 500));
+
     // 3. chunk text
     const chunks = chunkText(text);
-
+    console.log(`three chunks created from PDF:`, chunks.slice(0, 3));
+    // return 0;
     const client = await clientPromise;
     const db = client.db('voice-agent');
 
@@ -42,18 +46,18 @@ export async function POST(req: Request) {
       if (index == limit) break; // limit to 20 chunks for testing
       const embeddingRes = await openai.embeddings.create({
         model: 'text-embedding-3-small',
-        input: chunk,
+        input: chunk.text,
       });
 
       const embedding = embeddingRes.data[0].embedding;
 
       const result = await collection.insertOne({
-        text: chunk,
+        text: chunk.text,
         embedding,
         metadata: {
           fileName: file.name,
           createdAt: new Date(),
-          chunkSize: chunk.length,
+          chunkSize: chunk.text.length,
         },
       });
 
