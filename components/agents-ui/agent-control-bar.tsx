@@ -266,24 +266,29 @@ export function AgentControlBar({
   } = useInputControls({ onDeviceError, saveUserChoices });
 
   const handleSendMessage = async (message: string) => {
-    let toSend = message;
-    // try {
-    //   const res = await fetch('/api/rag/search', {
-    //     method: 'POST',
-    //     headers: { 'Content-Type': 'application/json' },
-    //     body: JSON.stringify({ query: message }),
-    //   });
-    //   if (res.ok) {
-    //     const data = (await res.json()) as { results?: { text: string }[] };
-    //     const ctx = data.results?.map((r) => r.text).filter(Boolean).slice(0, 5).join('\n\n');
-    //     if (ctx) toSend = `Context:\n${ctx}\n\n---\n\n${message}`;
-    //   }
-    // } catch (error) {
-    //   alert(`Error searching RAG: ${error}`);
-    //   /* RAG optional; still send the user message */
-    // }
-    alert(message);
-    await send(message);
+    let toSend = ''
+    try {
+      const res = await fetch('/api/rag/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: message }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { results?: { text: string }[] };
+        const ctx = data.results?.map((r) => r.text).filter(Boolean).slice(0, 5).join('\n\n');
+        if (ctx) toSend = `Context:\n${ctx}\n\n---\n\n${message}`;
+      }
+    } catch (error) {
+      alert(`Error searching RAG: ${error}`);
+      /* RAG optional; still send the user message */
+    }
+
+    toSend = `
+    Here is my question: ${message}
+    Here is the context I found: ${toSend}
+    you have to strictlly isntructed to responde me from the context only.
+    `
+    await send(toSend);
   };
 
   const visibleControls = {
