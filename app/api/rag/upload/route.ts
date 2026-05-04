@@ -51,6 +51,7 @@ export async function POST(req: Request) {
           fileName: file.name,
           createdAt: new Date(),
           chunkSize: chunk.length,
+          
         },
       });
 
