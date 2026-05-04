@@ -71,7 +71,5 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error(err);
     return Response.json({ error: 'Upload failed' }, { status: 500 });
-  } finally {
-    await clientPromise.then((client) => client.close());
   }
 }
