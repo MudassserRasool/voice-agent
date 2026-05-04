@@ -1,10 +1,5 @@
 'use client';
 
-import { type ComponentProps, useEffect, useRef, useState } from 'react';
-import { Track } from 'livekit-client';
-import { Loader, MessageSquareTextIcon, SendHorizontal } from 'lucide-react';
-import { type MotionProps, motion } from 'motion/react';
-import { useChat } from '@livekit/components-react';
 import { AgentDisconnectButton } from '@/components/agents-ui/agent-disconnect-button';
 import { AgentTrackControl } from '@/components/agents-ui/agent-track-control';
 import {
@@ -19,6 +14,11 @@ import {
   usePublishPermissions,
 } from '@/hooks/agents-ui/use-agent-control-bar';
 import { cn } from '@/lib/shadcn/utils';
+import { useChat } from '@livekit/components-react';
+import { Track } from 'livekit-client';
+import { Loader, MessageSquareTextIcon, SendHorizontal } from 'lucide-react';
+import { type MotionProps, motion } from 'motion/react';
+import { type ComponentProps, useEffect, useRef, useState } from 'react';
 
 const LK_TOGGLE_VARIANT_1 = [
   'data-[state=off]:bg-accent data-[state=off]:hover:bg-foreground/10',
@@ -67,7 +67,7 @@ interface AgentChatInputProps {
   className?: string;
 }
 
-function AgentChatInput({ chatOpen, onSend = async () => {}, className }: AgentChatInputProps) {
+function AgentChatInput({ chatOpen, onSend = async () => { }, className }: AgentChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [isSending, setIsSending] = useState(false);
   const [message, setMessage] = useState<string>('');
@@ -266,6 +266,23 @@ export function AgentControlBar({
   } = useInputControls({ onDeviceError, saveUserChoices });
 
   const handleSendMessage = async (message: string) => {
+    let toSend = message;
+    // try {
+    //   const res = await fetch('/api/rag/search', {
+    //     method: 'POST',
+    //     headers: { 'Content-Type': 'application/json' },
+    //     body: JSON.stringify({ query: message }),
+    //   });
+    //   if (res.ok) {
+    //     const data = (await res.json()) as { results?: { text: string }[] };
+    //     const ctx = data.results?.map((r) => r.text).filter(Boolean).slice(0, 5).join('\n\n');
+    //     if (ctx) toSend = `Context:\n${ctx}\n\n---\n\n${message}`;
+    //   }
+    // } catch (error) {
+    //   alert(`Error searching RAG: ${error}`);
+    //   /* RAG optional; still send the user message */
+    // }
+    alert(message);
     await send(message);
   };
 
@@ -393,7 +410,7 @@ export function AgentControlBar({
             disabled={!isConnected}
             className={cn(
               variant === 'livekit' &&
-                'bg-destructive/10 dark:bg-destructive/10 text-destructive hover:bg-destructive/20 dark:hover:bg-destructive/20 focus:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/4 rounded-full font-mono text-xs font-bold tracking-wider'
+              'bg-destructive/10 dark:bg-destructive/10 text-destructive hover:bg-destructive/20 dark:hover:bg-destructive/20 focus:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/4 rounded-full font-mono text-xs font-bold tracking-wider'
             )}
           >
             <span className="hidden md:inline">END CALL</span>
