@@ -3,7 +3,7 @@ import clientPromise from '@/lib/rag/mongodb';
 
 export async function GET() {
   const client = await clientPromise;
-  const db = client.db('mydb');
+  const db = client.db('voice-agent');
 
   const data = await db.collection('test').find({}).toArray();
 

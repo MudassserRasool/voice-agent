@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
     // 2. store in MongoDB
     const client = await clientPromise;
-    const db = client.db('mydb');
+    const db = client.db('voice-agent');
 
     const result = await db.collection('documents').insertOne({
       text,
