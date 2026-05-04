@@ -51,9 +51,11 @@ export async function POST(req: Request) {
           fileName: file.name,
           createdAt: new Date(),
           chunkSize: chunk.length,
-          
+
         },
       });
+
+      console.log('Inserted chunk with ID:', result.insertedId);
 
       inserted.push(result.insertedId);
     }
