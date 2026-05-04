@@ -35,8 +35,11 @@ export async function POST(req: Request) {
 
     // 4. process each chunk
     const inserted = [];
+    let index = 0;
+    const limit = 20;
 
     for (const chunk of chunks) {
+      if (index == limit) break; // limit to 20 chunks for testing
       const embeddingRes = await openai.embeddings.create({
         model: 'text-embedding-3-small',
         input: chunk,
@@ -51,13 +54,13 @@ export async function POST(req: Request) {
           fileName: file.name,
           createdAt: new Date(),
           chunkSize: chunk.length,
-
         },
       });
 
       console.log('Inserted chunk with ID:', result.insertedId);
 
       inserted.push(result.insertedId);
+      index++;
     }
 
     return Response.json({
@@ -68,5 +71,7 @@ export async function POST(req: Request) {
   } catch (err) {
     console.error(err);
     return Response.json({ error: 'Upload failed' }, { status: 500 });
+  } finally {
+    await clientPromise.then((client) => client.close());
   }
 }
