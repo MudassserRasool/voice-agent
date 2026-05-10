@@ -93,7 +93,7 @@ flowchart TB
 
 ## Prerequisites
 
-- **Node.js** 22.x (see `package.json` engines alignment via `@types/node`)
+- **Node.js** 22.x (matches `@types/node` in devDependencies)
 - **pnpm** 9.x (`packageManager` field pins `pnpm@9.15.9`)
 - A **LiveKit project** (Cloud or self-hosted) with API key and secret
 - **OpenAI** and **ElevenLabs** API keys for the worker
