@@ -1,193 +1,324 @@
-# Agent Starter for React
+# LearnMate — LiveKit Voice Tutor (React)
 
-This is a starter template for [LiveKit Agents](https://docs.livekit.io/agents) that provides a simple voice interface using [Agents UI](https://livekit.io/ui) components and [LiveKit JavaScript SDK](https://github.com/livekit/client-sdk-js). It supports [voice](https://docs.livekit.io/agents/start/voice-ai), [transcriptions](https://docs.livekit.io/agents/build/text/), and [virtual avatars](https://docs.livekit.io/agents/integrations/avatar).
+A production-oriented reference application for **real-time voice tutoring** on [LiveKit](https://livekit.io/). The web client is a [Next.js](https://nextjs.org/) application built with [Agents UI](https://livekit.io/ui) and the [LiveKit JavaScript SDK](https://github.com/livekit/client-sdk-js). A co-located **LiveKit Agents** worker implements the conversational “LearnMate” teacher using OpenAI (speech + language), ElevenLabs (synthesis), and Silero VAD with LiveKit’s multilingual turn detector.
 
-Also available for:
-[Android](https://github.com/livekit-examples/agent-starter-android) • [Flutter](https://github.com/livekit-examples/agent-starter-flutter) • [Swift](https://github.com/livekit-examples/agent-starter-swift) • [React Native](https://github.com/livekit-examples/agent-starter-react-native)
+Optional **RAG** (retrieval-augmented generation) HTTP routes demonstrate document ingestion, embedding, and vector search backed by **MongoDB**—useful when you want course material or notes available to downstream systems.
 
 <picture>
   <source srcset="./.github/assets/readme-hero-dark.webp" media="(prefers-color-scheme: dark)">
   <source srcset="./.github/assets/readme-hero-light.webp" media="(prefers-color-scheme: light)">
-  <img src="./.github/assets/readme-hero-light.webp" alt="App screenshot">
+  <img src="./.github/assets/readme-hero-light.webp" alt="Application screenshot">
 </picture>
 
-### Features:
+**Starter templates on other platforms:** [Android](https://github.com/livekit-examples/agent-starter-android) · [Flutter](https://github.com/livekit-examples/agent-starter-flutter) · [Swift](https://github.com/livekit-examples/agent-starter-swift) · [React Native](https://github.com/livekit-examples/agent-starter-react-native)
 
-- Real-time voice interaction with LiveKit Agents
-- Camera video streaming support
-- Screen sharing capabilities
-- Multiple audio visualizer styles (`bar`, `grid`, `radial`, `wave`, `aura`)
-- Virtual avatar integration
-- Light/dark theme switching with system preference detection
-- Customizable branding, colors, and UI text via configuration
+---
 
-This template is built with Next.js and is free for you to use or modify as you see fit.
+## Table of contents
 
-### Project structure
+- [Capabilities](#capabilities)
+- [System architecture](#system-architecture)
+- [Prerequisites](#prerequisites)
+- [Getting started](#getting-started)
+- [Environment configuration](#environment-configuration)
+- [npm scripts](#npm-scripts)
+- [Repository layout](#repository-layout)
+- [Application configuration](#application-configuration)
+- [Voice agent worker](#voice-agent-worker)
+- [Optional RAG APIs](#optional-rag-apis)
+- [Agents UI customization](#agents-ui-customization)
+- [Security and operations](#security-and-operations)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
 
-This starter uses the [Agents UI](https://livekit.io/ui) components for core UI elements like media controls, audio visualizers, chat transcripts, and providing session data. Shadcn installs components into `components/` folder so you can customize them like any other local component.
+---
 
+## Capabilities
+
+| Area              | Details                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Voice**         | Low-latency duplex audio via LiveKit; STT, LLM, and TTS orchestrated in the worker                                                    |
+| **Transcription** | Chat-style transcript UI (Agents UI) with TTS-aligned captions where supported                                                        |
+| **Media**         | Configurable camera and screen share (disabled by default in `app-config.ts` for this product skin)                                   |
+| **Visualization** | Multiple audio visualizer modes: `bar`, `grid`, `radial`, `wave`, `aura`                                                              |
+| **Theming**       | Light/dark themes with system preference; brand colors and logos via config                                                           |
+| **Dispatch**      | Explicit agent name (`AGENT_NAME` / `agentName`) aligned with [agent dispatch](https://docs.livekit.io/agents/server/agent-dispatch/) |
+
+---
+
+## System architecture
+
+```mermaid
+flowchart TB
+  subgraph Client["Browser (Next.js)"]
+    UI[Agents UI + app shell]
+    Token["/api/token or sandbox token source"]
+  end
+
+  subgraph LiveKitCloud["LiveKit"]
+    Room[Realtime room]
+  end
+
+  subgraph Worker["Node worker (teacher-agent)"]
+    VAD[Silero VAD]
+    STT[OpenAI STT]
+    LLM[OpenAI LLM]
+    TTS[ElevenLabs TTS]
+    TD[LiveKit turn detector]
+  end
+
+  subgraph Optional["Optional (RAG)"]
+    API["Next.js API routes"]
+    DB[(MongoDB)]
+    OAI[OpenAI embeddings]
+  end
+
+  UI --> Token
+  Token --> Room
+  UI <--> Room
+  Worker <--> Room
+  Worker --> STT
+  Worker --> LLM
+  Worker --> TTS
+  Worker --> VAD
+  Worker --> TD
+  API --> DB
+  API --> OAI
 ```
-agent-starter-react/
-├── app/
-│   ├── api/
-├── components/
-│   ├── agents-ui/     - Agents UI components
-│   ├── ai-elements/   - AI Elements components
-│   ├── app/           - App-specific components
-│   ├── ui/            - Primitive shadcn/ui components
-├── fonts/
-├── hooks/
-├── lib/
-├── public/
-└── package.json
-```
 
-Business logic lives within the `components/app` folder. It's here where the application's state and behavior is managed and the various Shadcn UI components are composed together.
+**Data flow (voice lesson):** the client obtains a short-lived access token, joins a LiveKit room, publishes microphone audio, and subscribes to the agent’s audio and metadata tracks. The worker connects as the agent participant, runs the `voice.AgentSession` pipeline, and streams replies back into the same room.
 
-| File                  | Description                                                                                                                                           |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session-view.tsx`    | Initializes the application, and LiveKit session. Renders the view controller and session UI including chat transcript, media tiles, and control bar. |
-| `view-controller.tsx` | Manages the transitions between the welcome and session views based on the LiveKit session state.                                                     |
-| `welcome-view.tsx`    | Renders the welcome UI when the LiveKit session is not connected.                                                                                     |
-| `chat-transcript.tsx` | Manages the chat transcript transitions.                                                                                                              |
-| `tile-layout.tsx`     | Manages the layout and transition of media tiles in various application states.                                                                       |
+---
 
-### Component usage
+## Prerequisites
 
-Most Agents UI components require access to a LiveKit session object for access to values like agent state or audio tracks. A Session object can be created from a [TokenSource](/reference/client-sdk-js/variables/TokenSource.html), and provided by wrapping the component in an [AgentSessionProvider](/reference/components/shadcn/component/agent-session-provider).
+- **Node.js** 22.x (matches `@types/node` in devDependencies)
+- **pnpm** 9.x (`packageManager` field pins `pnpm@9.15.9`)
+- A **LiveKit project** (Cloud or self-hosted) with API key and secret
+- **OpenAI** and **ElevenLabs** API keys for the worker
+- **MongoDB** URI only if you intend to use the RAG routes
 
-See [`components/app/app.tsx`](./components/app/app.tsx) for an example of how this is done in this app.
-
-### Customizing components
-
-Agents UI components, like most Shadcn compopnents, take as many primitive attributes as possible. For example, the [AgentControlBar](/reference/components/shadcn/component/agent-control-bar/page.mdoc) component extends `HTMLAttributes<HTMLDivElement>`, so you can pass any props that a div supports. This makes it easy to extend the component with your own styles or functionality.
-
-You can edit any Agents UI component's source code in the `components/agents-ui` directory. For style changes, we recommend passing in tailwind classes to override the default styles. Take a look at the source code to get a sense of how to override a component's default styles.
-
-### Updating components
-
-To update the Agents UI components to the latest publication, run the following command:
-
-```bash
-pnpm shadcn:install
-```
-
-> [!NOTE]
-> The CLI will ask before overwriting any modified files so you can avoid losing any customizations you might have made.
-
-### Installing components
-
-```bash
-pnpm dlx shadcn@latest add @agents-ui/{component-name-a} @agents-ui/{component-name-b}
-```
+---
 
 ## Getting started
 
-> [!TIP]
-> If you'd like to try this application without modification, you can deploy an instance in just a few clicks with [LiveKit Cloud Sandbox](https://cloud.livekit.io/projects/p_/sandbox/templates/agent-starter-react).
-
-[![Open on LiveKit](https://img.shields.io/badge/Open%20on%20LiveKit%20Cloud-002CF2?style=for-the-badge&logo=external-link)](https://cloud.livekit.io/projects/p_/sandbox/templates/agent-starter-react)
-
-Run the following command to automatically clone this template.
+You can scaffold a fresh copy with the LiveKit CLI, or clone this repository and follow the steps below.
 
 ```bash
 lk app create --template agent-starter-react
 ```
 
-Then run the app with:
+### 1. Install dependencies
 
 ```bash
 pnpm install
+```
+
+### 2. Configure secrets
+
+Copy the example environment file and fill in real values:
+
+```bash
+cp .env.example .env.local
+```
+
+See [Environment configuration](#environment-configuration) for the full variable reference.
+
+### 3. Run the web application
+
+```bash
 pnpm dev
 ```
 
-And open http://localhost:3000 in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-You'll also need an agent to speak with. Try our starter agent for [Python](https://github.com/livekit-examples/agent-starter-python), [Node.js](https://github.com/livekit-examples/agent-starter-node), or [create your own from scratch](https://docs.livekit.io/agents/start/voice-ai/).
+### 4. Run the voice agent worker
 
-## Configuration
+In a **second** terminal (the UI will not hear an agent until a worker is connected and dispatched):
 
-This starter is designed to be flexible so you can adapt it to your specific agent use case. You can easily configure it to work with different types of inputs and outputs:
-
-#### Example: App configuration (`app-config.ts`)
-
-```ts
-export const APP_CONFIG_DEFAULTS: AppConfig = {
-  companyName: 'LiveKit',
-  pageTitle: 'LiveKit Voice Agent',
-  pageDescription: 'A voice agent built with LiveKit',
-
-  supportsChatInput: true,
-  supportsVideoInput: true,
-  supportsScreenShare: true,
-  isPreConnectBufferEnabled: true,
-
-  logo: '/lk-logo.svg',
-  accent: '#002cf2',
-  logoDark: '/lk-logo-dark.svg',
-  accentDark: '#1fd5f9',
-  startButtonText: 'Start call',
-
-  // optional: audio visualization configuration
-  // audioVisualizerColor: '#002cf2',
-  // audioVisualizerColorDark: '#1fd5f9',
-  // audioVisualizerType: 'bar',
-  // audioVisualizerBarCount: 5,
-  // audioVisualizerType: 'radial',
-  // audioVisualizerRadialBarCount: 24,
-  // audioVisualizerRadialRadius: 100,
-  // audioVisualizerType: 'grid',
-  // audioVisualizerGridRowCount: 25,
-  // audioVisualizerGridColumnCount: 25,
-  // audioVisualizerType: 'wave',
-  // audioVisualizerWaveLineWidth: 3,
-  // audioVisualizerType: 'aura',
-  // audioVisualizerAuraColorShift: 0.3,
-
-  // agent dispatch configuration
-  agentName: undefined,
-
-  // LiveKit Cloud Sandbox configuration
-  sandboxId: undefined,
-};
+```bash
+pnpm agent:dev
 ```
 
-You can update these values in [`app-config.ts`](./app-config.ts) to customize branding, features, and UI text for your deployment.
+For production-style execution:
 
-#### Audio visualizer presets
-
-Set `audioVisualizerType` in [`app-config.ts`](./app-config.ts) to switch visualizer styles:
-
-- `bar` (default): vertical bars with optional `audioVisualizerBarCount`
-- `grid`: dot grid with `audioVisualizerGridRowCount` and `audioVisualizerGridColumnCount`
-- `radial`: circular bars with `audioVisualizerRadialBarCount` and `audioVisualizerRadialRadius`
-- `wave`: oscilloscope-style wave with `audioVisualizerWaveLineWidth`
-- `aura`: shader-based aura with `audioVisualizerAuraColorShift`
-
-Use `audioVisualizerColor` to set a shared accent color across all visualizer modes.
-
-> [!NOTE]
-> The `sandboxId` is for the LiveKit Cloud Sandbox environment.
-> It is not used for local development.
-
-#### Environment Variables
-
-You'll also need to configure your LiveKit credentials in `.env.local` (copy `.env.example` if you don't have one):
-
-```env
-LIVEKIT_API_KEY=your_livekit_api_key
-LIVEKIT_API_SECRET=your_livekit_api_secret
-LIVEKIT_URL=https://your-livekit-server-url
-
-# Agent dispatch (https://docs.livekit.io/agents/server/agent-dispatch)
-# Leave AGENT_NAME blank to enable automatic dispatch
-# Provide an agent name to enable explicit dispatch
-AGENT_NAME=
+```bash
+pnpm agent:start
 ```
 
-These are required for the voice agent functionality to work with your LiveKit project.
+### 5. (Optional) One-click sandbox
+
+To evaluate without local LiveKit wiring, use [LiveKit Cloud Sandbox](https://cloud.livekit.io/projects/p_/sandbox/templates/agent-starter-react) for a hosted pairing of infrastructure and template.
+
+[![Open on LiveKit](https://img.shields.io/badge/Open%20on%20LiveKit%20Cloud-002CF2?style=for-the-badge&logo=external-link)](https://cloud.livekit.io/projects/p_/sandbox/templates/agent-starter-react)
+
+---
+
+## Environment configuration
+
+Variables are read from **`.env.local`** at the project root (the worker loads the same file via `dotenv`).
+
+| Variable                            | Required by                | Purpose                                                                                                                |
+| ----------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `LIVEKIT_API_KEY`                   | Next.js `/api/token`       | Server-side signing of participant tokens                                                                              |
+| `LIVEKIT_API_SECRET`                | Next.js `/api/token`       | Secret for JWT signing                                                                                                 |
+| `LIVEKIT_URL`                       | Next.js `/api/token`       | WebSocket URL returned to the client (for example `wss://<subdomain>.livekit.cloud`)                                   |
+| `AGENT_NAME`                        | Next.js + worker           | Must match the worker’s registered name for [explicit dispatch](https://docs.livekit.io/agents/server/agent-dispatch/) |
+| `OPENAI_API_KEY`                    | Worker; RAG routes if used | LLM, STT, and embeddings                                                                                               |
+| `ELEVEN_API_KEY`                    | Worker                     | Text-to-speech                                                                                                         |
+| `ELEVENLABS_VOICE_ID`               | Worker                     | Voice selection                                                                                                        |
+| `OPENAI_LLM_MODEL`                  | Worker                     | Override default LLM (default `gpt-4.1-mini`)                                                                          |
+| `OPENAI_STT_MODEL`                  | Worker                     | Override STT model                                                                                                     |
+| `ELEVENLABS_MODEL`                  | Worker                     | Override TTS model                                                                                                     |
+| `AGENT_LANGUAGE`                    | Worker                     | Spoken language code                                                                                                   |
+| `MONGODB_URI`                       | RAG only                   | MongoDB connection string                                                                                              |
+| `NEXT_PUBLIC_CONN_DETAILS_ENDPOINT` | Client (optional)          | When set, the app uses the sandbox token helper instead of `/api/token`                                                |
+| `NEXT_PUBLIC_APP_CONFIG_ENDPOINT`   | Client (optional)          | Remote app configuration endpoint                                                                                      |
+| `SANDBOX_ID`                        | Client (optional)          | LiveKit Cloud Sandbox identifier                                                                                       |
+
+Local LiveKit dev defaults (when running `livekit-server --dev`) are documented inline in [`.env.example`](./.env.example).
+
+---
+
+## npm scripts
+
+| Script                      | Description                                           |
+| --------------------------- | ----------------------------------------------------- |
+| `pnpm dev`                  | Next.js development server (Turbopack)                |
+| `pnpm build`                | Production build                                      |
+| `pnpm start`                | Serve the production build                            |
+| `pnpm lint`                 | ESLint (Next.js config)                               |
+| `pnpm format`               | Prettier write                                        |
+| `pnpm format:check`         | Prettier check (CI-friendly)                          |
+| `pnpm agent:dev`            | Run the teacher worker in development                 |
+| `pnpm agent:start`          | Run the teacher worker in production mode             |
+| `pnpm agent:download-files` | Pre-download Silero / model assets for the worker     |
+| `pnpm shadcn:install`       | Refresh pinned Agents UI components from the registry |
+
+---
+
+## Repository layout
+
+```
+.
+├── agent/
+│   └── teacher-agent.ts      # LiveKit Agents worker (STT / LLM / TTS session)
+├── app/
+│   ├── api/
+│   │   ├── token/            # Participant JWT issuance + dispatch hints
+│   │   └── rag/              # Optional upload / embed / search
+│   └── …                     # Next.js App Router pages and layout
+├── components/
+│   ├── agents-ui/            # LiveKit Agents UI primitives and blocks
+│   ├── ai-elements/          # Composable AI UI elements
+│   ├── app/                  # Product-specific shell (session, welcome, theme)
+│   └── ui/                   # shadcn/ui primitives
+├── hooks/                    # React hooks (including Agents UI visualizers)
+├── lib/                      # Shared utilities and RAG Mongo helper
+├── public/                   # Static assets (logos, marks)
+├── app-config.ts             # Typed branding and feature flags
+└── package.json
+```
+
+**Convention:** orchestration and view state for the lesson experience live under `components/app/`. Treat `components/agents-ui/` as **vendor-adjacent** UI—customize via props and Tailwind first, then fork source when behavior must change.
+
+---
+
+## Application configuration
+
+[`app-config.ts`](./app-config.ts) exports a typed `AppConfig` consumed by the client shell. Adjust:
+
+- **Branding:** `companyName`, `pageTitle`, `pageDescription`, `logo`, `accent`, dark variants
+- **Features:** `supportsChatInput`, `supportsVideoInput`, `supportsScreenShare`, `isPreConnectBufferEnabled`
+- **Audio UI:** `audioVisualizerType` and related dimensional parameters
+- **Dispatch:** `agentName` (defaults from `process.env.AGENT_NAME` with fallback `teacher`)
+
+Audio visualizer modes behave as follows:
+
+| `audioVisualizerType` | Behavior                                                   |
+| --------------------- | ---------------------------------------------------------- |
+| `bar`                 | Vertical bar spectrum; tune with `audioVisualizerBarCount` |
+| `grid`                | Dot matrix; row/column counts configurable                 |
+| `radial`              | Circular bars; radius and bar count configurable           |
+| `wave`                | Oscilloscope-style trace; line width configurable          |
+| `aura`                | Shader-style aura; optional hue shift                      |
+
+---
+
+## Voice agent worker
+
+[`agent/teacher-agent.ts`](./agent/teacher-agent.ts) defines a single `defineAgent` entrypoint:
+
+1. **Prewarm** — loads Silero VAD once per process for reuse.
+2. **Entry** — connects to the job context, waits for the first participant, constructs `voice.AgentSession` with OpenAI STT/LLM, ElevenLabs TTS, LiveKit turn detection, and starts the session against the room.
+3. **First reply** — generates a short LearnMate greeting that asks for topic and level.
+
+Model identifiers and voice settings are intentionally driven by environment variables so you can promote configuration across environments without code changes.
+
+---
+
+## Optional RAG APIs
+
+HTTP routes under `app/api/rag/` illustrate a minimal ingestion and retrieval pipeline:
+
+| Route           | Role                                                  |
+| --------------- | ----------------------------------------------------- |
+| `POST …/upload` | Accept document uploads, extract text, chunk, persist |
+| `POST …/embed`  | Generate embeddings for stored chunks                 |
+| `POST …/search` | Query by embedding similarity                         |
+
+These routes expect `MONGODB_URI` and reuse `OPENAI_API_KEY`. They are **orthogonal** to the voice worker: wire them into your own agent or server logic if you need grounded answers over private corpora.
+
+---
+
+## Agents UI customization
+
+Agents UI components mirror the shadcn pattern: they accept standard DOM props where the underlying element allows it, so Tailwind classes and event handlers compose naturally.
+
+**Update registry components** (non-destructive when the CLI prompts before overwrite):
+
+```bash
+pnpm shadcn:install
+```
+
+**Add individual components:**
+
+```bash
+pnpm dlx shadcn@latest add @agents-ui/<component-name>
+```
+
+Session wiring example: wrap the tree in `AgentSessionProvider` and construct a `TokenSource` as in [`components/app/app.tsx`](./components/app/app.tsx).
+
+---
+
+## Security and operations
+
+- **Token minting** — [`app/api/token/route.ts`](./app/api/token/route.ts) validates origin, applies a lightweight rate limit, and signs short-lived grants. Keep API keys only on the server; never embed secrets in client bundles.
+- **Agent dispatch** — `AGENT_NAME` in the client config must match the name registered by the worker (`WorkerOptions.agentName`) or dispatch will not attach your worker to new rooms.
+- **Dependencies** — Pin upgrades deliberately; the voice stack is sensitive to breaking changes across `@livekit/agents`, plugins, and `livekit-client`.
+
+---
+
+## Troubleshooting
+
+| Symptom                      | Likely cause                             | Mitigation                                              |
+| ---------------------------- | ---------------------------------------- | ------------------------------------------------------- |
+| UI connects but silent agent | Worker not running or wrong `AGENT_NAME` | Run `pnpm agent:dev` and align env with `app-config.ts` |
+| 403 / failed token           | Origin validation or missing LiveKit env | Check `LIVEKIT_*` values and request origin             |
+| RAG 500 on boot              | Missing `MONGODB_URI`                    | Set URI or disable routes behind feature flag           |
+| Model errors at runtime      | Invalid model ID or quota                | Verify OpenAI / ElevenLabs dashboards                   |
+
+---
 
 ## Contributing
 
-This template is open source and we welcome contributions! Please open a PR or issue through GitHub, and don't forget to join us in the [LiveKit Community Slack](https://livekit.io/join-slack)!
+Issues and pull requests are welcome. For broader LiveKit questions, join the [LiveKit Community Slack](https://livekit.io/join-slack).
+
+---
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).
+
+Copyright (c) LiveKit, Inc. See [LICENSE](./LICENSE) for the full text.
